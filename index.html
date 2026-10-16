@@ -45,7 +45,8 @@
   kbd { font-size: 12px; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; color: var(--muted); }
 
   header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-  header h1 { font-size: 18px; margin: 0; margin-right: auto; cursor: pointer; }
+  header h1 { font-size: 18px; margin: 0; cursor: pointer; }
+  #savestatus { margin-right: auto; }
   header h1 span { color: var(--accent); }
   header label { color: var(--muted); font-size: 14px; display: flex; gap: 6px; align-items: center; }
   main { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
@@ -119,6 +120,7 @@
 <body>
 <header>
   <h1 id="home"><span>Repeat</span>Me</h1>
+  <span id="savestatus" style="font-size:13px"></span>
   <label title="Off: indentation is given and spaces are ignored. On: you type exact indentation and spacing.">
     <input type="checkbox" id="strict"> Strict whitespace
   </label>
@@ -205,7 +207,31 @@ const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&
 function load(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
 }
-function save() { localStorage.setItem(STORE, JSON.stringify(programs)); }
+// Opened through start.bat (server.py): progress lives in progress.json in the repo folder.
+// Opened as a plain file: only this browser's storage is available.
+const FILE_MODE = location.protocol.startsWith('http');
+let saveTimer = null;
+
+function setSaveStatus(text, color = 'var(--muted)', title = '') {
+  const el = $('#savestatus');
+  Object.assign(el, { textContent: text, title });
+  el.style.color = color;
+}
+
+function save() {
+  localStorage.setItem(STORE, JSON.stringify(programs));
+  if (!FILE_MODE) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const r = await fetch('progress.json', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ programs }) });
+      if (!r.ok) throw new Error(r.status);
+      setSaveStatus('✓ saved to progress.json');
+    } catch {
+      setSaveStatus('⚠ not saved — is start.bat still running?', 'var(--bad)');
+    }
+  }, 300);
+}
 function saveSettings() { localStorage.setItem(SETTINGS, JSON.stringify(settings)); }
 
 const SAMPLE = `def quicksort(arr):
@@ -218,13 +244,26 @@ const SAMPLE = `def quicksort(arr):
     right = [x for x in arr if x > pivot]  # bigger than pivot
     return quicksort(left) + middle + quicksort(right)  # sort both sides, glue together`;
 
-let programs = load(STORE, null);
-if (!programs) {
-  programs = [{ id: Date.now(), name: 'QuickSort', code: SAMPLE, revisions: 0, lastScore: null, bestScore: null, lastRevised: null }];
-  save();
+let programs = [];
+
+async function loadPrograms() {
+  let fromFile = null;
+  if (FILE_MODE) {
+    try {
+      const r = await fetch('progress.json', { cache: 'no-store' });
+      if (r.ok) fromFile = (await r.json()).programs;
+    } catch { /* no progress.json yet */ }
+  }
+  // no progress.json yet: start from what this browser had (or the sample), and create the file
+  programs = fromFile ?? load(STORE, null) ?? [{ id: Date.now(), name: 'QuickSort', code: SAMPLE, revisions: 0, lastScore: null, bestScore: null, lastRevised: null }];
+  // programs saved before history existed: keep at least their last pass
+  for (const p of programs) if (!p.history && p.lastRevised) p.history = [{ score: p.lastScore, at: p.lastRevised }];
+  if (!fromFile) save();
+  if (FILE_MODE) setSaveStatus(fromFile ? '✓ progress.json' : '✓ created progress.json');
+  else setSaveStatus('⚠ saved in this browser only — open with start.bat', 'var(--warn)',
+    'Opened as a file, the app cannot write progress.json. Double-click start.bat instead so your progress is saved in the repo.');
 }
-// programs saved before history existed: keep at least their last pass
-for (const p of programs) if (!p.history && p.lastRevised) p.history = [{ score: p.lastScore, at: p.lastRevised }];
+
 const settings = Object.assign({ theme: 'dark', strict: false }, load(SETTINGS, {}));
 
 function applySettings() {
@@ -356,7 +395,8 @@ function showLibrary() {
       let added = 0;
       for (const p of data) {
         if (typeof p.name !== 'string' || typeof p.code !== 'string') continue;
-        const existing = programs.find(x => x.id === p.id);
+        // same id, or same name (so importing over the starter QuickSort doesn't create a duplicate)
+        const existing = programs.find(x => x.id === p.id) ?? programs.find(x => x.name === p.name);
         if (existing) Object.assign(existing, p); else programs.push(p);
         added++;
       }
@@ -627,7 +667,7 @@ function renderResult() {
 }
 
 applySettings();
-showLibrary();
+loadPrograms().then(showLibrary);
 </script>
 </body>
 </html>
