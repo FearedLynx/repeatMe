@@ -50,6 +50,7 @@
   header h1 span { color: var(--accent); }
   header label { color: var(--muted); font-size: 14px; display: flex; gap: 6px; align-items: center; }
   main { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+  main.wide { max-width: 1440px; }
   .muted { color: var(--muted); }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .spacer { flex: 1; }
@@ -109,6 +110,24 @@
   .remaining { color: var(--muted); padding: 6px 0 0 44px; font-size: 13px; }
   .legend { font-size: 13px; margin-top: 14px; display: flex; gap: 14px; flex-wrap: wrap; }
   .legend .ok { color: var(--ok); } .legend .w { color: var(--warn); } .legend .h { color: var(--hint); } .legend .b { color: var(--bad); }
+
+  /* Code | Description */
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 420px); gap: 20px; align-items: start; }
+  .split.solo { grid-template-columns: minmax(0, 1fr); }
+  .desc { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px 16px;
+    position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; font-size: 14px; line-height: 1.55; }
+  .desc .lbl { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+  .desc .h { font-weight: 700; color: var(--accent); margin-top: 10px; }
+  .desc .h:first-of-type { margin-top: 0; }
+  .desc code { font-family: Consolas, "Courier New", monospace; font-size: 13px; padding: 0 3px; border-radius: 3px;
+    background: color-mix(in srgb, var(--text) 8%, transparent); }
+  .desc code span { font-variant-ligatures: none; }
+  #desc { font: 14px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; height: calc(100vh - 230px); min-height: 360px;
+    margin: 0; resize: none; tab-size: 2; }
+  @media (max-width: 900px) {
+    .split { grid-template-columns: minmax(0, 1fr); }
+    .desc { position: static; max-height: none; }
+  }
 
   .result { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-top: 16px; }
   .result h2 { margin: 0 0 6px; }
@@ -244,6 +263,15 @@ const SAMPLE = `def quicksort(arr):
     right = [x for x in arr if x > pivot]  # bigger than pivot
     return quicksort(left) + middle + quicksort(right)  # sort both sides, glue together`;
 
+const SAMPLE_DESC = `## quicksort(arr)
+1. Base case: a list with 0 or 1 elements is already sorted, return it.
+2. Pick the **middle** element as the pivot: \`arr[len(arr) // 2]\`.
+3. Split into three lists:
+  - \`left\`: everything smaller than the pivot
+  - \`middle\`: everything equal to the pivot
+  - \`right\`: everything bigger than the pivot
+4. Sort \`left\` and \`right\` recursively, glue them back: left + middle + right.`;
+
 let programs = [];
 
 async function loadPrograms() {
@@ -255,7 +283,7 @@ async function loadPrograms() {
     } catch { /* no progress.json yet */ }
   }
   // no progress.json yet: start from what this browser had (or the sample), and create the file
-  programs = fromFile ?? load(STORE, null) ?? [{ id: Date.now(), name: 'QuickSort', code: SAMPLE, revisions: 0, lastScore: null, bestScore: null, lastRevised: null }];
+  programs = fromFile ?? load(STORE, null) ?? [{ id: Date.now(), name: 'QuickSort', code: SAMPLE, description: SAMPLE_DESC, revisions: 0, lastScore: null, bestScore: null, lastRevised: null }];
   // programs saved before history existed: keep at least their last pass
   for (const p of programs) if (!p.history && p.lastRevised) p.history = [{ score: p.lastScore, at: p.lastRevised }];
   if (!fromFile) save();
@@ -264,7 +292,7 @@ async function loadPrograms() {
     'Opened as a file, the app cannot write progress.json. Double-click start.bat instead so your progress is saved in the repo.');
 }
 
-const settings = Object.assign({ theme: 'dark', strict: false }, load(SETTINGS, {}));
+const settings = Object.assign({ theme: 'dark', strict: false, showDesc: true }, load(SETTINGS, {}));
 
 function applySettings() {
   document.documentElement.dataset.theme = settings.theme;
@@ -314,6 +342,26 @@ function parse(source) {
   return items;
 }
 
+// Light formatting for descriptions: "## heading", "- bullet", "1. step", `code`, **bold**.
+// Leading spaces nest a line one level per 2 spaces; bullets/steps get a hanging indent.
+function descHtml(text) {
+  return text.replace(/\r/g, '').split('\n').map(line => {
+    if (!line.trim()) return '<div>&nbsp;</div>';
+    const heading = line.match(/^\s*#+\s+(.*)/);
+    const body = esc(heading ? heading[1] : line.trim())
+      .replace(/`([^`]+)`/g, '<code data-hl>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+    if (heading) return `<div class="h">${body}</div>`;
+    const level = line.match(/^ */)[0].length / 2, bullet = /^\s*([-*]|\d+\.)\s/.test(line) ? 1.3 : 0;
+    return `<div style="padding-left:${level * 1.2 + bullet}em;text-indent:${-bullet}em">${body}</div>`;
+  }).join('');
+}
+
+function descPanel(p) {
+  return `<aside class="desc" id="descpanel"><div class="lbl">Description</div>${p.description?.trim() ? descHtml(p.description)
+    : '<div class="muted">No description yet. Click <b>Edit</b> in the library to write step-by-step instructions for this algorithm.</div>'}</aside>`;
+}
+
 function norm(s) {
   s = s.replace(/\t/g, '    ');
   return settings.strict ? s.replace(/\s+$/, '') : s.replace(/\s+/g, '');
@@ -341,6 +389,7 @@ function showLibrary() {
   session = null;
   disposeEditor();
   document.onkeydown = null;
+  app.classList.remove('wide');
   const rows = programs.map(p => {
     const n = parse(p.code).filter(i => i.type === 'code').length;
     return `
@@ -411,9 +460,21 @@ function showEditor(id) {
   session = null;
   disposeEditor();
   const p = programs.find(p => p.id === id);
+  app.classList.add('wide');
   app.innerHTML = `
     <input class="title" id="name" placeholder="Name, e.g. MergeSort" value="${p ? esc(p.name) : ''}">
-    <div id="editor"><textarea id="code" spellcheck="false"></textarea></div>
+    <div class="split">
+      <div id="editor"><textarea id="code" spellcheck="false"></textarea></div>
+      <textarea id="desc" spellcheck="true" placeholder="Description: step-by-step instructions shown next to the code while practising.
+
+## partition(C, pivot)
+1. Start \`i\` at the first index, \`j\` at the last
+2. Loop:
+  - move \`i\` right while \`C[i] < pivot\`
+  - ...
+
+## heading · - bullet · 1. step · \`code\` · **bold** · 2 spaces = nested"></textarea>
+    </div>
     <div class="row" style="margin-top:10px">
       <span class="muted" id="info"></span>
       <span class="muted" style="font-size:13px">Anything after <code>#</code> is a tip · a comment on its own line is the tip for the line below</span>
@@ -423,6 +484,10 @@ function showEditor(id) {
     </div>`;
   const ta = $('#code');
   ta.value = p ? p.code : '';
+  $('#desc').value = p?.description ?? '';
+  $('#desc').onkeydown = e => {
+    if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertText', false, '  '); }
+  };
   const getCode = () => editor ? editor.getValue() : ta.value;
   const info = () => {
     const items = parse(getCode()).filter(i => i.type === 'code');
@@ -445,11 +510,11 @@ function showEditor(id) {
     }
   };
   const doSave = () => {
-    const name = $('#name').value.trim(), code = getCode().replace(/\s+$/, '');
+    const name = $('#name').value.trim(), code = getCode().replace(/\s+$/, ''), description = $('#desc').value.replace(/\s+$/, '');
     if (!name) return $('#name').focus();
     if (!parse(code).some(i => i.type === 'code')) return (editor || ta).focus();
-    if (p) Object.assign(p, { name, code });
-    else programs.push({ id: Date.now(), name, code, revisions: 0, lastScore: null, bestScore: null, lastRevised: null });
+    if (p) Object.assign(p, { name, code, description });
+    else programs.push({ id: Date.now(), name, code, description, revisions: 0, lastScore: null, bestScore: null, lastRevised: null });
     save(); showLibrary();
   };
   $('#save').onclick = doSave;
@@ -542,6 +607,8 @@ function renderPractice() {
   if (left) html += `<div class="remaining">… ${left} more line${left > 1 ? 's' : ''} to go</div>`;
 
   const done = Object.values(s.results);
+  const descScroll = $('#descpanel')?.scrollTop ?? 0;
+  app.classList.add('wide');
   app.innerHTML = `
     <div class="status">
       <b>${esc(s.prog.name)}</b>
@@ -551,13 +618,20 @@ function renderPractice() {
       <span class="pill" style="color:var(--warn)">✗ ${done.filter(r => r === 'mistake').length}</span>
       <span class="pill" style="color:var(--hint)">💡 ${done.filter(r => r === 'tip' || r === 'reveal').length}</span>
       <div class="spacer"></div>
+      <button id="desctoggle" title="Show or hide the description (Ctrl+.)">${settings.showDesc ? 'Hide' : 'Show'} description</button>
       <button id="quit">Exit <kbd>Esc</kbd></button>
     </div>
-    <div class="code">${html}</div>
-    <div class="legend muted">
-      <span><kbd>Enter</kbd> check line</span><span><kbd>Ctrl+/</kbd> hint</span>
-      <span class="ok">✓ perfect</span><span class="w">✗ had mistakes</span><span class="h">💡 needed tip</span><span class="b">👁 revealed</span>
+    <div class="split ${settings.showDesc ? '' : 'solo'}">
+      <div>
+        <div class="code">${html}</div>
+        <div class="legend muted">
+          <span><kbd>Enter</kbd> check line</span><span><kbd>Ctrl+/</kbd> hint</span><span><kbd>Ctrl+.</kbd> description</span>
+          <span class="ok">✓ perfect</span><span class="w">✗ had mistakes</span><span class="h">💡 needed tip</span><span class="b">👁 revealed</span>
+        </div>
+      </div>
+      ${settings.showDesc ? descPanel(s.prog) : ''}
     </div>`;
+  if ($('#descpanel')) $('#descpanel').scrollTop = descScroll;
 
   highlight(app);
   const input = $('#answer'), hl = $('#hl');
@@ -585,9 +659,12 @@ function renderPractice() {
   };
   $('#bulb').onclick = hint;
   $('#quit').onclick = showLibrary;
+  const toggleDesc = () => { settings.showDesc = !settings.showDesc; saveSettings(); renderPractice(); };
+  $('#desctoggle').onclick = toggleDesc;
   document.onkeydown = e => {
     if (e.key === 'Escape') showLibrary();
     else if (e.ctrlKey && e.key === '/') { e.preventDefault(); hint(); }
+    else if (e.ctrlKey && e.key === '.') { e.preventDefault(); toggleDesc(); }
   };
 }
 
@@ -634,6 +711,7 @@ function renderResult() {
   else if (!weak.length) { title = 'Weak lines fixed'; msg = 'Now do a full pass to lock it in (that counts as a revision).'; }
   else { title = 'Keep going'; msg = `${weak.length} line${weak.length > 1 ? 's still need' : ' still needs'} work:`; }
 
+  app.classList.remove('wide');
   app.innerHTML = `
     <div class="result">
       <div class="row">
