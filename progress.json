@@ -5,14 +5,90 @@
       "name": "QuickSort",
       "code": "def quicksort(C):\n    n = len(C)\n    if n > 1:\n        pivot = choose_pivot(C) # define pivot\n        p = partition(C, pivot) # define p\n        C[:p+1] = quicksort(C[:p+1]) # right\n        C[p+1:] = quicksort(C[p+1:]) # left\n    return C\n\ndef choose_pivot(C):\n    return C[(len(C) - 1) // 2]\n\ndef partition(C, pivot):\n    i = 0\n    j = len(C) - 1\n\n    while True:\n        while C[i] < pivot:\n            i+=1\n        while C[j] > pivot:\n            j-=1\n        if i >= j:\n            return j\n        C[i], C[j] = C[j], C[i] # change \n        i+=1\n        j-=1",
       "description": "Sorts the list in place (Hoare partition), using three functions.\n\n## quicksort(C)\n1. Store the length: `n = len(C)`\n2. Only if there is something to sort (`n > 1`):\n  - choose the pivot with `choose_pivot(C)`\n  - split C around the pivot with `partition(C, pivot)`, which gives the split index `p`\n  - sort the front part `C[:p+1]` recursively and write it back into the same slice\n  - sort the back part `C[p+1:]` recursively and write it back\n3. Return `C` (outside the if, so short lists come back unchanged)\n\n## choose_pivot(C)\n1. Return the middle element: index `(len(C) - 1) // 2`\n\n## partition(C, pivot)\n1. Two pointers: `i` starts at the first index (0), `j` at the last (`len(C) - 1`)\n2. Loop forever (`while True`):\n  - move `i` right while `C[i] < pivot`\n  - move `j` left while `C[j] > pivot`\n  - if the pointers met or crossed (`i >= j`): return `j`\n  - otherwise swap `C[i]` and `C[j]`\n  - step both pointers inward: `i` up by 1, `j` down by 1\n\n**Remember:** the split index `p` is the last index of the front part, which is why it is `C[:p+1]` and `C[p+1:]`.",
-      "revisions": 1,
-      "lastScore": 52,
-      "bestScore": 52,
-      "lastRevised": 1792153023905,
+      "revisions": 10,
+      "lastScore": 96,
+      "bestScore": 96,
+      "lastRevised": 1792331397379,
       "history": [
         {
           "score": 52,
           "at": 1792153023905
+        },
+        {
+          "score": 65,
+          "at": 1792190166279
+        },
+        {
+          "score": 74,
+          "at": 1792190676513
+        },
+        {
+          "score": 91,
+          "at": 1792191137821
+        },
+        {
+          "score": 96,
+          "at": 1792191491511
+        },
+        {
+          "score": 91,
+          "at": 1792247014532
+        },
+        {
+          "score": 87,
+          "at": 1792247254657
+        },
+        {
+          "score": 96,
+          "at": 1792320455618
+        },
+        {
+          "score": 91,
+          "at": 1792322853548
+        },
+        {
+          "score": 96,
+          "at": 1792331397379
+        }
+      ]
+    },
+    {
+      "id": 1792321580315,
+      "name": "MergeSort",
+      "code": "def merge_sort(C):\n    n = len(C)\n    if n <= 1:\n        return C\n    m = n // 2\n    L = merge_sort(C[:m])\n    R = merge_sort(C[m:])\n    return merge(L, R)\n\ndef merge(L, R):\n    C = []\n    i = 0\n    j = 0\n\n    while i < len(L) and j < len(R):\n        if L[i] <= R[j]:\n            C.append(L[i])\n            i+=1\n        else:\n            C.append(R[j])\n            j+=1\n    C.extend(L[i:])\n    C.extend(R[j:])\n    return C",
+      "description": "Sorts by splitting the list in half, sorting each half, then merging them. Returns a new list.\n\n## merge_sort(C)\n1. Store the length: `n = len(C)`\n2. Base case: if `n <= 1`, the list is already sorted, so return `C`\n3. Find the middle: `m = n // 2`\n4. Sort the left half `C[:m]` recursively and store it in `L`\n5. Sort the right half `C[m:]` recursively and store it in `R`\n6. Return `merge(L, R)`\n\n## merge(L, R)\n1. Start an empty result list `C`\n2. Two pointers, both starting at 0: `i` for `L`, `j` for `R`\n3. While both lists still have elements (`i < len(L) and j < len(R)`):\n  - if `L[i] <= R[j]`: append `L[i]` and move `i` up by 1\n  - otherwise: append `R[j]` and move `j` up by 1\n4. One list is used up, so add what is left of both:\n  - `C.extend(L[i:])`\n  - `C.extend(R[j:])`\n5. Return `C`\n\n**Remember:** `<=` (not `<`) takes from the left first when values are equal, which keeps the sort stable.",
+      "revisions": 7,
+      "lastScore": 86,
+      "bestScore": 91,
+      "lastRevised": 1793032109442,
+      "history": [
+        {
+          "score": 73,
+          "at": 1792321878248
+        },
+        {
+          "score": 73,
+          "at": 1792322431108
+        },
+        {
+          "score": 73,
+          "at": 1792323319611
+        },
+        {
+          "score": 77,
+          "at": 1792323905477
+        },
+        {
+          "score": 91,
+          "at": 1792324170137
+        },
+        {
+          "score": 91,
+          "at": 1792331566701
+        },
+        {
+          "score": 86,
+          "at": 1793032109442
         }
       ]
     }
